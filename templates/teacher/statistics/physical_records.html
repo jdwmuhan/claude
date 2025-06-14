@@ -1,0 +1,282 @@
+{% extends 'teacher/base.html' %}
+{% load static %}
+
+{% block title %}신체기록 통계{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- 헤더 및 네비게이션 -->
+        <div class="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl shadow-sm p-6 mb-6">
+            <h1 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
+                <span class="text-3xl mr-3">💪</span>
+                신체기록 통계
+            </h1>
+            
+            <!-- 네비게이션 탭 -->
+            <div class="flex flex-wrap gap-2">
+                <a href="{% url 'teacher:statistics_dashboard' %}" 
+                   class="px-4 py-2 rounded-lg font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-chart-line text-sm"></i>
+                    <span>개요</span>
+                </a>
+                <a href="{% url 'teacher:statistics_by_class' %}" 
+                   class="px-4 py-2 rounded-lg font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-users text-sm"></i>
+                    <span>반별 통계</span>
+                </a>
+                <a href="{% url 'teacher:statistics_by_course' %}" 
+                   class="px-4 py-2 rounded-lg font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-book text-sm"></i>
+                    <span>코스별 통계</span>
+                </a>
+                <a href="{% url 'teacher:submission_analysis' %}" 
+                   class="px-4 py-2 rounded-lg font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-clipboard-check text-sm"></i>
+                    <span>제출 분석</span>
+                </a>
+                <a href="{% url 'teacher:weakness_analysis' %}" 
+                   class="px-4 py-2 rounded-lg font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-chart-pie text-sm"></i>
+                    <span>취약점 분석</span>
+                </a>
+                <a href="{% url 'teacher:physical_records' %}" 
+                   class="px-4 py-2 rounded-lg font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 shadow-md transform scale-105 flex items-center gap-2">
+                    <i class="fas fa-heartbeat text-sm"></i>
+                    <span>신체기록</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- 필터 섹션 -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+            <form method="get" action="">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                    <div class="md:col-span-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            <i class="fas fa-filter text-indigo-500 mr-1"></i>필터 유형
+                        </label>
+                        <select name="filter" onchange="this.form.submit()"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200">
+                            <option value="class" {% if filter_type == 'class' %}selected{% endif %}>학급별</option>
+                            <option value="student" {% if filter_type == 'student' %}selected{% endif %}>학생별</option>
+                        </select>
+                    </div>
+                    
+                    <div class="md:col-span-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            {% if filter_type == 'class' %}
+                                <i class="fas fa-users text-indigo-500 mr-1"></i>학급 선택
+                            {% else %}
+                                <i class="fas fa-user-graduate text-indigo-500 mr-1"></i>학생 선택
+                            {% endif %}
+                        </label>
+                        <select name="id" onchange="this.form.submit()"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200">
+                            <option value="">-- 선택하세요 --</option>
+                            {% if filter_type == 'class' %}
+                                {% for class in classes %}
+                                <option value="{{ class.id }}" {% if filter_id == class.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ class.name }}
+                                </option>
+                                {% endfor %}
+                            {% else %}
+                                {% for student in students %}
+                                <option value="{{ student.id }}" {% if filter_id == student.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ student.user.get_full_name }} ({{ student.student_id }})
+                                </option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    <div class="md:col-span-3">
+                        <button type="button" onclick="exportPhysicalData()" 
+                                class="w-full bg-white text-green-600 border border-green-600 px-4 py-2 rounded-lg font-medium hover:bg-green-50 transition-colors duration-200 flex items-center justify-center gap-2">
+                            <i class="fas fa-download"></i>
+                            <span>데이터 내보내기</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {% if records %}
+        <!-- 평균 통계 -->
+        {% if avg_stats %}
+        <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl shadow-lg text-white p-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="text-center">
+                    <div class="text-4xl font-bold mb-2">{{ avg_stats.avg_height|floatformat:1 }}cm</div>
+                    <div class="text-sm opacity-90">평균 신장</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-bold mb-2">{{ avg_stats.avg_weight|floatformat:1 }}kg</div>
+                    <div class="text-sm opacity-90">평균 체중</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-4xl font-bold mb-2">{{ avg_stats.avg_bmi|floatformat:1 }}</div>
+                    <div class="text-sm opacity-90">평균 BMI</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 기록 테이블 -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+            <div class="overflow-x-auto max-h-[600px]">
+                <table class="w-full">
+                    <thead class="bg-gray-50 sticky top-0 z-10">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">측정일</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">학생</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">학급</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">신장 (cm)</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">체중 (kg)</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">BMI</th>
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">상태</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-100">
+                        {% for record in records %}
+                        <tr class="hover:bg-gray-50 transition-colors duration-150">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ record.recorded_at|date:"Y-m-d" }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center mr-3">
+                                        <span class="text-indigo-600 text-xs font-medium">
+                                            {{ record.student.user.get_full_name|slice:":1" }}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">{{ record.student.user.get_full_name }}</div>
+                                        <div class="text-sm text-gray-500">{{ record.student.student_id }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ record.student.school_class.name }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                                {{ record.height|floatformat:1 }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
+                                {{ record.weight|floatformat:1 }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium text-gray-900">
+                                {{ record.bmi|floatformat:1 }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                {% if record.bmi < 18.5 %}
+                                    <span class="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                        저체중
+                                    </span>
+                                {% elif record.bmi < 23 %}
+                                    <span class="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                        정상
+                                    </span>
+                                {% elif record.bmi < 25 %}
+                                    <span class="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">
+                                        과체중
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
+                                        비만
+                                    </span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 성장 추이 차트 -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h5 class="text-lg font-semibold text-gray-800 mb-4">성장 추이 차트</h5>
+            <div class="relative h-[300px]">
+                <canvas id="growthChart"></canvas>
+            </div>
+        </div>
+        {% else %}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+            <i class="fas fa-heartbeat text-6xl text-gray-300 mb-4"></i>
+            <p class="text-gray-500">선택한 조건에 해당하는 신체기록이 없습니다.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+function exportPhysicalData() {
+    const filterType = document.querySelector('[name="filter"]').value;
+    const filterId = document.querySelector('[name="id"]').value;
+    window.location.href = `{% url 'teacher:export_statistics' %}?type=physical&filter=${filterType}&id=${filterId}`;
+}
+
+// Growth Chart
+{% if records %}
+const ctx = document.getElementById('growthChart').getContext('2d');
+const growthChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [{% for record in records %}'{{ record.recorded_at|date:"Y-m-d" }}',{% endfor %}],
+        datasets: [
+            {
+                label: '신장 (cm)',
+                data: [{% for record in records %}{{ record.height|floatformat:1 }},{% endfor %}],
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                yAxisID: 'y',
+                tension: 0.3,
+            },
+            {
+                label: '체중 (kg)',
+                data: [{% for record in records %}{{ record.weight|floatformat:1 }},{% endfor %}],
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                yAxisID: 'y1',
+                tension: 0.3,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                title: {
+                    display: true,
+                    text: '신장 (cm)'
+                }
+            },
+            y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                title: {
+                    display: true,
+                    text: '체중 (kg)'
+                },
+                grid: {
+                    drawOnChartArea: false,
+                },
+            },
+        },
+        plugins: {
+            legend: {
+                position: 'top',
+            }
+        }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}
